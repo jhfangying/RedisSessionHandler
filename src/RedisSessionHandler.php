@@ -101,7 +101,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function open($save_path, $name)
+    public function open($save_path, $name):bool
     {
         $this->cookieName = $name;
 
@@ -138,7 +138,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function create_sid()
+    public function create_sid():string
     {
         $id = parent::create_sid();
 
@@ -147,7 +147,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
         return $id;
     }
 
-    private function regen()
+    private function regen():string
     {
         session_id($session_id = $this->create_sid());
         $params = session_get_cookie_params();
@@ -163,20 +163,21 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
         return $session_id;
     }
 
-    public function validateId($sessionId)
+    public function validateId($sessionId):bool
     {
         return !$this->mustRegenerate($sessionId);
     }
 
-    public function updateTimestamp($sessionId, $sessionData)
+    public function updateTimestamp($sessionId, $sessionData):bool
     {
-        return parent::updateTimestamp($sessionId, $sessionData);
+        // return parent::updateTimestamp($sessionId, $sessionData);
+        return $this->redis->expire($sessionId, $this->session_ttl);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function read($session_id)
+    public function read($session_id):string|false
     {
         if (PHP_VERSION_ID < 70000 && $this->mustRegenerate($session_id)) {
             $session_id = $this->regen();
@@ -194,7 +195,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function write($session_id, $session_data)
+    public function write($session_id, $session_data):bool
     {
         return true === $this->redis->setex($session_id, $this->session_ttl, $session_data);
     }
@@ -202,7 +203,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function destroy($session_id)
+    public function destroy($session_id):bool
     {
         $this->redis->del($session_id);
         $this->redis->del("{$session_id}_lock");
@@ -213,7 +214,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function close()
+    public function close():bool
     {
         $this->releaseLocks();
 
@@ -225,11 +226,10 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
     /**
      * {@inheritdoc}
      */
-    public function gc($maxlifetime)
+    public function gc($maxlifetime, $all_sessions = false):bool|int
     {
         // Redis does not need garbage collection, the builtin
         // expiration mechanism already takes care of stale sessions
-
         return true;
     }
 
@@ -287,7 +287,7 @@ class RedisSessionHandler extends \SessionHandler implements \SessionUpdateTimes
      *
      * @return bool
      */
-    private function isNew($session_id)
+    private function isNew($session_id):bool
     {
         return isset($this->new_sessions[$session_id]);
     }
